@@ -31,6 +31,7 @@ type conn struct {
 // New returns a task queue backed by Google Cloud pubusb.
 func New(opts ...Option) (queue.Queue, error) {
 	conn := new(conn)
+	// 初始化 subs
 	conn.subs = map[string]*subscription{}
 
 	// conn.base = queue.New()
@@ -38,9 +39,11 @@ func New(opts ...Option) (queue.Queue, error) {
 	conn.opts.topic = "queue"
 	conn.opts.subscription = "default"
 	for _, opt := range opts {
+		// 初始化 options
 		opt(conn.opts)
 	}
 
+	// gcp 鉴权信息
 	jsonToken, err := ioutil.ReadFile(conn.opts.tokenpath)
 	if err != nil {
 		return nil, err
@@ -51,6 +54,8 @@ func New(opts ...Option) (queue.Queue, error) {
 	}
 	src := jwt.TokenSource(oauth2.NoContext)
 	cli := oauth2.NewClient(oauth2.NoContext, src)
+
+	// 初始化 gcp pub/sub client
 	conn.client = internal.NewClient(cli)
 
 	go conn.pollWait()
@@ -149,9 +154,14 @@ func (c *conn) Info(ctx context.Context) queue.InfoT {
 }
 
 func (c *conn) poll(ctx context.Context) (internal.Message, error) {
+	/*
+		从已完成的队列读取消息，删除队列里的消息
+		close 相应的 subscription
+	*/
 	log.Println("queue: pull: polling for messages")
 
 	var message internal.Message
+	// 从 未完成 这个 channel 读取长度为 1 的消息
 	messages, err := c.client.Pull(
 		context.Background(),
 		c.opts.project,
@@ -166,6 +176,7 @@ func (c *conn) poll(ctx context.Context) (internal.Message, error) {
 	}
 	message = messages[0]
 
+	// 从 未完成 这个 channel 删除掉已经读取到任务
 	err = c.client.Ack(
 		context.Background(),
 		c.opts.project,
@@ -175,10 +186,15 @@ func (c *conn) poll(ctx context.Context) (internal.Message, error) {
 	if err != nil {
 		log.Printf("queue: ack: error: %s", err)
 	}
+	// 返回这个任务
 	return message, nil
 }
 
 func (c *conn) pollWait() {
+	/*
+		从已完成的队列读取消息，删除队列里的消息
+		close 相应的 subscription
+	*/
 	for {
 		log.Println("queue: pull: polling for done messages")
 
@@ -188,6 +204,7 @@ func (c *conn) pollWait() {
 			c.opts.subscriptionDone,
 			100,
 		)
+		// 从 已完成 这个 channel 读取消息
 		if err != nil {
 			log.Printf("pubsub: ack: error: %s", err)
 			continue
@@ -198,6 +215,7 @@ func (c *conn) pollWait() {
 			ackIDs = append(ackIDs, message.AckID)
 		}
 
+		// 从 已完成 这个 channel 删除相关的消息
 		err = c.client.Ack(
 			context.Background(),
 			c.opts.project,
