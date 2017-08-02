@@ -18,9 +18,9 @@ var ErrDeadLine = errors.New("queue: deadline received")
 type entry struct {
 	item     *queue.Task
 	done     chan bool
-	retry    int
-	error    error
-	deadline time.Time
+	retry    int       // state need store
+	error    error     // state need store
+	deadline time.Time // state need store
 }
 
 type conn struct {
@@ -48,8 +48,8 @@ func New(opts ...Option) (queue.Queue, error) {
 
 	conn.client = redis.NewClient(&redis.Options{
 		Addr:     conn.opts.addr,
-		Password: conn.opts.password, // no password set
-		DB:       conn.opts.db,       // use default DB
+		Password: conn.opts.password,
+		DB:       conn.opts.db,
 	})
 
 	return conn, nil
@@ -72,7 +72,7 @@ func (c *conn) Push(ctx context.Context, task *queue.Task) error {
 
 // 2. Undone list(Redis) => Task
 func (c *conn) Poll(ctx context.Context, f queue.Filter) (*queue.Task, error) {
-	result, err := c.client.BLPop(POP_TIMEOUT, c.opts.queueName).Result()
+	result, err := c.client.BRPop(POP_TIMEOUT, c.opts.queueName).Result()
 	if err != nil {
 		return nil, err
 	}
