@@ -2,10 +2,11 @@ package redis
 
 // Options defines Redis queue options.
 type Options struct {
-	addr      string
-	password  string
-	db        int
-	queueName string
+	addr              string
+	password          string
+	db                int
+	penddingQueueName string
+	hostIdentity      string
 }
 
 // Option configures the Redis client.
@@ -30,8 +31,14 @@ func WithDB(db int) Option {
 	}
 }
 
-func WithQueueName(queueName string) Option {
+func WithPenddingQueueName(queueName string) Option {
 	return func(opts *Options) {
-		opts.queueName = queueName
+		opts.penddingQueueName = queueName
+	}
+}
+
+func WithHostIdentity(identity string) Option {
+	return func(opts *Options) {
+		opts.hostIdentity = identity
 	}
 }
